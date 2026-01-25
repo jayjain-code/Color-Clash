@@ -97,90 +97,102 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+<body class="min-h-screen flex flex-col items-center justify-start md:justify-center p-4">
 
     <!-- Header -->
     <header class="w-full max-w-4xl flex justify-between items-center mb-6">
-        <h1 class="text-3xl md:text-5xl font-bold text-teal-400 drop-shadow-lg">
+        <h1 class="text-2xl md:text-5xl font-bold text-teal-400 drop-shadow-lg">
             <i class="fas fa-cubes"></i> Color Clash
         </h1>
-        <div class="flex gap-3">
-            <select id="sizeSelect" class="bg-gray-700 text-white rounded-lg px-4 py-2 outline-none border-2 border-gray-600 focus:border-teal-400 font-bold cursor-pointer">
+        <div class="flex gap-2 md:gap-3">
+            <select id="sizeSelect" class="bg-gray-700 text-white rounded-lg px-2 py-1 md:px-4 md:py-2 outline-none border-2 border-gray-600 focus:border-teal-400 font-bold cursor-pointer text-sm md:text-base">
                 <option value="8">8 x 8</option>
                 <option value="12" selected>12 x 12</option>
                 <option value="16">16 x 16</option>
                 <option value="20">20 x 20</option>
             </select>
-            <button id="newGameBtn" class="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2 rounded-lg font-bold game-btn shadow-lg">
-                <i class="fas fa-redo mr-2"></i> Reset
+            <button id="newGameBtn" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 md:px-6 md:py-2 rounded-lg font-bold game-btn shadow-lg text-sm md:text-base">
+                <i class="fas fa-redo md:mr-2"></i> <span class="hidden md:inline">Reset</span>
             </button>
         </div>
     </header>
 
     <!-- Main Game Container -->
-    <main class="w-full max-w-4xl flex flex-col md:flex-row gap-8 items-start justify-center">
+    <!-- Flex column on mobile, row on desktop. Gap reduced for mobile tightness. -->
+    <main class="w-full max-w-4xl flex flex-col md:flex-row gap-4 md:gap-8 items-center md:items-start justify-center">
         
-        <!-- Left Sidebar: Stats -->
-        <div class="w-full md:w-72 flex flex-col gap-4 order-2 md:order-1">
+        <!-- Center: Canvas (Order 1 on Mobile, Order 2 on Desktop) -->
+        <div class="order-1 md:order-2 flex-grow flex justify-center items-center bg-gray-800 p-2 md:p-4 rounded-xl shadow-2xl border border-gray-700 w-full max-w-md md:max-w-full">
+            <canvas id="gameCanvas" width="600" height="600" class="max-w-full h-auto aspect-square"></canvas>
+        </div>
+
+        <!-- Controls: Palette (Order 2 on Mobile, Order 3 on Desktop via absolute/flex placement in original design, here we integrated it) -->
+        <!-- We move this div to be physically here for mobile flow, but styled to look like footer on desktop if needed, 
+             or we keep the 3-column logic. To match request "Exactly below grid on phone", we put it here in flow. -->
+        <div class="order-2 w-full max-w-4xl flex flex-col items-center md:hidden">
+             <div id="colorPaletteMobile" class="flex flex-wrap justify-center gap-3 bg-gray-800 p-3 rounded-2xl shadow-inner border border-gray-700 w-full">
+                <!-- Color buttons injected by JS -->
+            </div>
+        </div>
+
+        <!-- Left Sidebar: Stats (Order 3 on Mobile, Order 1 on Desktop) -->
+        <div class="w-full md:w-72 flex flex-col gap-4 order-3 md:order-1">
             
             <!-- Turn Indicator -->
-            <div id="turnIndicator" class="bg-gray-800 p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-2xl transition-colors duration-300 flex flex-col items-center justify-center min-h-[100px]">
+            <div id="turnIndicator" class="bg-gray-800 p-4 md:p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-xl md:text-2xl transition-colors duration-300 flex flex-col items-center justify-center min-h-[80px] md:min-h-[100px]">
                 <span>Your Turn</span>
             </div>
 
-            <!-- Player Stats -->
-            <div class="bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-gray-400 text-sm font-bold tracking-wider">PLAYER</span>
-                    <i class="fas fa-user text-teal-400"></i>
+            <div class="grid grid-cols-2 md:grid-cols-1 gap-4">
+                <!-- Player Stats -->
+                <div class="bg-gray-800 p-4 md:p-5 rounded-xl shadow-lg border border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400 text-xs md:text-sm font-bold tracking-wider">PLAYER</span>
+                        <i class="fas fa-user text-teal-400"></i>
+                    </div>
+                    <div class="flex items-end justify-between">
+                        <span id="playerScore" class="text-3xl md:text-5xl font-bold text-white">1</span>
+                        <span class="text-[10px] md:text-xs text-gray-500 mb-1 md:mb-2">cells</span>
+                    </div>
+                    <div class="w-full bg-gray-900 h-2 md:h-3 mt-2 md:mt-3 rounded-full overflow-hidden">
+                        <div id="playerBar" class="stat-bar bg-teal-400 h-full" style="width: 1%"></div>
+                    </div>
                 </div>
-                <div class="flex items-end justify-between">
-                    <span id="playerScore" class="text-5xl font-bold text-white">1</span>
-                    <span class="text-xs text-gray-500 mb-2">cells owned</span>
-                </div>
-                <div class="w-full bg-gray-900 h-3 mt-3 rounded-full overflow-hidden">
-                    <div id="playerBar" class="stat-bar bg-teal-400 h-full" style="width: 1%"></div>
-                </div>
-            </div>
 
-            <!-- CPU Stats -->
-            <div class="bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-gray-400 text-sm font-bold tracking-wider">CPU (AI)</span>
-                    <i class="fas fa-robot text-pink-500"></i>
-                </div>
-                <div class="flex items-end justify-between">
-                    <span id="cpuScore" class="text-5xl font-bold text-white">1</span>
-                    <span class="text-xs text-gray-500 mb-2">cells owned</span>
-                </div>
-                <div class="w-full bg-gray-900 h-3 mt-3 rounded-full overflow-hidden">
-                    <div id="cpuBar" class="stat-bar bg-pink-500 h-full" style="width: 1%"></div>
+                <!-- CPU Stats -->
+                <div class="bg-gray-800 p-4 md:p-5 rounded-xl shadow-lg border border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400 text-xs md:text-sm font-bold tracking-wider">CPU (AI)</span>
+                        <i class="fas fa-robot text-pink-500"></i>
+                    </div>
+                    <div class="flex items-end justify-between">
+                        <span id="cpuScore" class="text-3xl md:text-5xl font-bold text-white">1</span>
+                        <span class="text-[10px] md:text-xs text-gray-500 mb-1 md:mb-2">cells</span>
+                    </div>
+                    <div class="w-full bg-gray-900 h-2 md:h-3 mt-2 md:mt-3 rounded-full overflow-hidden">
+                        <div id="cpuBar" class="stat-bar bg-pink-500 h-full" style="width: 1%"></div>
+                    </div>
                 </div>
             </div>
 
             <!-- Game Log / Messages -->
-            <div id="gameMessage" class="text-center text-sm text-gray-400 italic mt-2 min-h-[1.5em]">
+            <div id="gameMessage" class="text-center text-xs md:text-sm text-gray-400 italic mt-2 min-h-[1.5em]">
                 Expand your territory to win.
             </div>
         </div>
 
-        <!-- Center: Canvas -->
-        <div class="relative order-1 md:order-2 flex-grow flex justify-center items-center bg-gray-800 p-4 rounded-xl shadow-2xl border border-gray-700">
-            <canvas id="gameCanvas" width="600" height="600" class="max-w-full h-auto aspect-square"></canvas>
-        </div>
-
     </main>
 
-    <!-- Bottom: Controls -->
-    <div class="w-full max-w-4xl mt-8 order-3 flex flex-col items-center">
+    <!-- Desktop Controls (Hidden on Mobile, Visible on Desktop) -->
+    <div class="hidden md:flex w-full max-w-4xl mt-8 flex-col items-center">
         <h3 class="text-gray-400 mb-4 text-sm font-bold uppercase tracking-[0.2em]">Choose Next Color</h3>
-        <div id="colorPalette" class="flex flex-wrap justify-center gap-4 bg-gray-800 p-4 rounded-2xl shadow-inner border border-gray-700">
+        <div id="colorPaletteDesktop" class="flex flex-wrap justify-center gap-4 bg-gray-800 p-4 rounded-2xl shadow-inner border border-gray-700">
             <!-- Color buttons injected by JS -->
         </div>
     </div>
 
     <!-- Modal: Game Over -->
-    <div id="gameOverModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50">
+    <div id="gameOverModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl text-center border-2 border-gray-600 max-w-sm w-full transform scale-100 transition-transform">
             <div id="modalIcon" class="text-7xl mb-6 animate-bounce">🏆</div>
             <h2 id="modalTitle" class="text-4xl font-bold mb-3 text-white">You Win!</h2>
@@ -231,7 +243,8 @@
         ui.cpuScore = document.getElementById('cpuScore');
         ui.playerBar = document.getElementById('playerBar');
         ui.cpuBar = document.getElementById('cpuBar');
-        ui.palette = document.getElementById('colorPalette');
+        ui.paletteMobile = document.getElementById('colorPaletteMobile');
+        ui.paletteDesktop = document.getElementById('colorPaletteDesktop');
         ui.newGameBtn = document.getElementById('newGameBtn');
         ui.sizeSelect = document.getElementById('sizeSelect');
         ui.message = document.getElementById('gameMessage');
@@ -564,15 +577,14 @@
         // Turn Indicator
         if(currentState === 'PLAYER_TURN') {
             ui.turnIndicator.innerHTML = '<span class="text-white">Your Turn</span>';
-            ui.turnIndicator.className = "bg-gray-800 p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-2xl flex flex-col items-center justify-center min-h-[100px]";
+            ui.turnIndicator.className = "bg-gray-800 p-4 md:p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-xl md:text-2xl flex flex-col items-center justify-center min-h-[80px] md:min-h-[100px]";
         } else if (currentState === 'CPU_TURN') {
             ui.turnIndicator.innerHTML = '<span class="text-gray-400">AI Thinking...</span><i class="fas fa-cog fa-spin mt-2"></i>';
-            ui.turnIndicator.className = "bg-gray-800 p-6 rounded-xl border-l-8 border-pink-500 shadow-xl text-center font-bold text-2xl flex flex-col items-center justify-center min-h-[100px]";
+            ui.turnIndicator.className = "bg-gray-800 p-4 md:p-6 rounded-xl border-l-8 border-pink-500 shadow-xl text-center font-bold text-xl md:text-2xl flex flex-col items-center justify-center min-h-[80px] md:min-h-[100px]";
         }
 
-        // Palette Buttons
-        ui.palette.innerHTML = '';
-        COLORS.forEach((color, idx) => {
+        // Function to create button HTML (reused for mobile and desktop)
+        const createButton = (color, idx) => {
             const btn = document.createElement('div');
             btn.className = 'color-swatch';
             btn.style.backgroundColor = color;
@@ -586,8 +598,19 @@
             } else if (currentState === 'PLAYER_TURN') {
                 btn.onclick = () => handlePlayerTurn(idx);
             }
+            return btn;
+        };
 
-            ui.palette.appendChild(btn);
+        // Update Mobile Palette
+        ui.paletteMobile.innerHTML = '';
+        COLORS.forEach((color, idx) => {
+            ui.paletteMobile.appendChild(createButton(color, idx));
+        });
+
+        // Update Desktop Palette
+        ui.paletteDesktop.innerHTML = '';
+        COLORS.forEach((color, idx) => {
+            ui.paletteDesktop.appendChild(createButton(color, idx));
         });
     }
 
