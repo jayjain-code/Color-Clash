@@ -122,7 +122,7 @@
     <main class="w-full max-w-4xl flex flex-col md:flex-row gap-4 md:gap-8 items-center md:items-start justify-center">
         
         <!-- Center: Canvas (Order 1 on Mobile, Order 2 on Desktop) -->
-        <div class="order-1 md:order-2 flex-grow flex justify-center items-center bg-gray-800 p-2 md:p-4 rounded-xl shadow-2xl border border-gray-700 w-full max-w-md md:max-w-full">
+        <div id="canvasContainer" class="order-1 md:order-2 flex-grow flex justify-center items-center bg-gray-800 p-2 md:p-4 rounded-xl shadow-2xl border border-gray-700 w-full max-w-md md:max-w-full">
             <canvas id="gameCanvas" width="600" height="600" class="max-w-full h-auto aspect-square"></canvas>
         </div>
 
@@ -237,6 +237,13 @@
         if (!canvas) return; // Prevention
         ctx = canvas.getContext('2d');
 
+        // Dynamic Sizing based on parent container width
+        const parentWidth = document.getElementById('canvasContainer').clientWidth;
+        // Subtract some padding (e.g. 16px or 32px) to be safe
+        const size = Math.min(600, parentWidth - 32); 
+        canvas.width = size;
+        canvas.height = size;
+
         // Cache UI elements
         ui.turnIndicator = document.getElementById('turnIndicator');
         ui.playerScore = document.getElementById('playerScore');
@@ -258,6 +265,16 @@
         ui.newGameBtn.onclick = () => { if(confirm("Restart game?")) initGame(); };
         ui.modalRestart.onclick = initGame;
         ui.sizeSelect.onchange = () => { ui.sizeSelect.blur(); initGame(); };
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+             const pWidth = document.getElementById('canvasContainer').clientWidth;
+             const s = Math.min(600, pWidth - 32);
+             canvas.width = s;
+             canvas.height = s;
+             // Re-render immediate to avoid flicker
+             renderLoop();
+        });
 
         // Start Logic
         initGame();
