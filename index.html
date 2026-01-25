@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Clash: Territory Flood</title>
+    <!-- Tailwind CSS for Layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #1a202c;
+            --panel-bg: #2d3748;
+            --highlight: #4fd1c5;
+        }
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            overflow-x: hidden;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        /* Custom Canvas Styling */
+        canvas {
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            background-color: #000;
+            cursor: crosshair;
+            image-rendering: pixelated; /* Keeps crisp edges */
+        }
+
+        /* UI Elements */
+        .game-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: scale(1);
+        }
+        .game-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .color-swatch {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            cursor: pointer;
+            border: 4px solid transparent;
+            transition: transform 0.2s, border-color 0.2s, opacity 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .color-swatch:hover {
+            transform: translateY(-4px);
+        }
+
+        /* Active: Player owns this color */
+        .color-swatch.active {
+            transform: scale(0.95);
+            cursor: default;
+            border-color: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        /* Forbidden: CPU owns this color */
+        .color-swatch.forbidden {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+            border-color: rgba(0,0,0,0.5);
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            backdrop-filter: blur(8px);
+            background-color: rgba(0,0,0,0.8);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Stats Bar Animation */
+        .stat-bar {
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl flex justify-between items-center mb-6">
+        <h1 class="text-3xl md:text-5xl font-bold text-teal-400 drop-shadow-lg">
+            <i class="fas fa-cubes"></i> Color Clash
+        </h1>
+        <div class="flex gap-3">
+            <select id="sizeSelect" class="bg-gray-700 text-white rounded-lg px-4 py-2 outline-none border-2 border-gray-600 focus:border-teal-400 font-bold cursor-pointer">
+                <option value="8">8 x 8</option>
+                <option value="12" selected>12 x 12</option>
+                <option value="16">16 x 16</option>
+                <option value="20">20 x 20</option>
+            </select>
+            <button id="newGameBtn" class="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2 rounded-lg font-bold game-btn shadow-lg">
+                <i class="fas fa-redo mr-2"></i> Reset
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="w-full max-w-4xl flex flex-col md:flex-row gap-8 items-start justify-center">
+        
+        <!-- Left Sidebar: Stats -->
+        <div class="w-full md:w-72 flex flex-col gap-4 order-2 md:order-1">
+            
+            <!-- Turn Indicator -->
+            <div id="turnIndicator" class="bg-gray-800 p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-2xl transition-colors duration-300 flex flex-col items-center justify-center min-h-[100px]">
+                <span>Your Turn</span>
+            </div>
+
+            <!-- Player Stats -->
+            <div class="bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-bold tracking-wider">PLAYER</span>
+                    <i class="fas fa-user text-teal-400"></i>
+                </div>
+                <div class="flex items-end justify-between">
+                    <span id="playerScore" class="text-5xl font-bold text-white">1</span>
+                    <span class="text-xs text-gray-500 mb-2">cells owned</span>
+                </div>
+                <div class="w-full bg-gray-900 h-3 mt-3 rounded-full overflow-hidden">
+                    <div id="playerBar" class="stat-bar bg-teal-400 h-full" style="width: 1%"></div>
+                </div>
+            </div>
+
+            <!-- CPU Stats -->
+            <div class="bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-bold tracking-wider">CPU (AI)</span>
+                    <i class="fas fa-robot text-pink-500"></i>
+                </div>
+                <div class="flex items-end justify-between">
+                    <span id="cpuScore" class="text-5xl font-bold text-white">1</span>
+                    <span class="text-xs text-gray-500 mb-2">cells owned</span>
+                </div>
+                <div class="w-full bg-gray-900 h-3 mt-3 rounded-full overflow-hidden">
+                    <div id="cpuBar" class="stat-bar bg-pink-500 h-full" style="width: 1%"></div>
+                </div>
+            </div>
+
+            <!-- Game Log / Messages -->
+            <div id="gameMessage" class="text-center text-sm text-gray-400 italic mt-2 min-h-[1.5em]">
+                Expand your territory to win.
+            </div>
+        </div>
+
+        <!-- Center: Canvas -->
+        <div class="relative order-1 md:order-2 flex-grow flex justify-center items-center bg-gray-800 p-4 rounded-xl shadow-2xl border border-gray-700">
+            <canvas id="gameCanvas" width="600" height="600" class="max-w-full h-auto aspect-square"></canvas>
+        </div>
+
+    </main>
+
+    <!-- Bottom: Controls -->
+    <div class="w-full max-w-4xl mt-8 order-3 flex flex-col items-center">
+        <h3 class="text-gray-400 mb-4 text-sm font-bold uppercase tracking-[0.2em]">Choose Next Color</h3>
+        <div id="colorPalette" class="flex flex-wrap justify-center gap-4 bg-gray-800 p-4 rounded-2xl shadow-inner border border-gray-700">
+            <!-- Color buttons injected by JS -->
+        </div>
+    </div>
+
+    <!-- Modal: Game Over -->
+    <div id="gameOverModal" class="fixed inset-0 modal-overlay hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl text-center border-2 border-gray-600 max-w-sm w-full transform scale-100 transition-transform">
+            <div id="modalIcon" class="text-7xl mb-6 animate-bounce">🏆</div>
+            <h2 id="modalTitle" class="text-4xl font-bold mb-3 text-white">You Win!</h2>
+            <p id="modalMessage" class="text-gray-300 mb-8 text-lg">You captured the majority of the board.</p>
+            <button id="modalRestartBtn" class="bg-teal-500 hover:bg-teal-600 text-white w-full py-4 rounded-xl font-bold text-xl game-btn shadow-lg">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+<script>
+    // --- CONFIGURATION ---
+    const COLORS = [
+        '#EF476F', // Pink
+        '#FFD166', // Yellow
+        '#06D6A0', // Teal
+        '#118AB2', // Blue
+        '#9D4EDD', // Purple
+        '#FF9F1C'  // Orange
+    ];
+
+    const AI_DELAY_MS = 800; // Time for AI to "think"
+
+    // --- GLOBAL STATE ---
+    let canvas, ctx;
+    let GRID_SIZE = 12;
+    let grid = [];      // 2D Array: Color Indices
+    let owners = [];    // 2D Array: 0=None, 1=Player, 2=CPU
+    let playerColor = 0;
+    let cpuColor = 0;
+    let playerTerritorySize = 1;
+    let cpuTerritorySize = 1;
+    let currentState = 'PLAYER_TURN'; // PLAYER_TURN, CPU_TURN, GAME_OVER
+
+    // --- DOM CACHE ---
+    const ui = {};
+
+    // --- INITIALIZATION ---
+    function setup() {
+        // Safe DOM Element Selection
+        canvas = document.getElementById('gameCanvas');
+        if (!canvas) return; // Prevention
+        ctx = canvas.getContext('2d');
+
+        // Cache UI elements
+        ui.turnIndicator = document.getElementById('turnIndicator');
+        ui.playerScore = document.getElementById('playerScore');
+        ui.cpuScore = document.getElementById('cpuScore');
+        ui.playerBar = document.getElementById('playerBar');
+        ui.cpuBar = document.getElementById('cpuBar');
+        ui.palette = document.getElementById('colorPalette');
+        ui.newGameBtn = document.getElementById('newGameBtn');
+        ui.sizeSelect = document.getElementById('sizeSelect');
+        ui.message = document.getElementById('gameMessage');
+        ui.modal = document.getElementById('gameOverModal');
+        ui.modalTitle = document.getElementById('modalTitle');
+        ui.modalMessage = document.getElementById('modalMessage');
+        ui.modalIcon = document.getElementById('modalIcon');
+        ui.modalRestart = document.getElementById('modalRestartBtn');
+
+        // Event Listeners
+        ui.newGameBtn.onclick = () => { if(confirm("Restart game?")) initGame(); };
+        ui.modalRestart.onclick = initGame;
+        ui.sizeSelect.onchange = () => { ui.sizeSelect.blur(); initGame(); };
+
+        // Start Logic
+        initGame();
+        
+        // Start Render Loop
+        requestAnimationFrame(renderLoop);
+    }
+
+    function initGame() {
+        // Reset State
+        GRID_SIZE = parseInt(ui.sizeSelect.value);
+        grid = [];
+        owners = [];
+        currentState = 'PLAYER_TURN';
+        ui.modal.classList.add('hidden');
+
+        // Generate Grid
+        for(let y=0; y<GRID_SIZE; y++) {
+            let row = [];
+            let ownerRow = [];
+            for(let x=0; x<GRID_SIZE; x++) {
+                row.push(Math.floor(Math.random() * COLORS.length));
+                ownerRow.push(0);
+            }
+            grid.push(row);
+            owners.push(ownerRow);
+        }
+
+        // Set Start Positions
+        // Player: Top Left
+        owners[0][0] = 1;
+        playerColor = grid[0][0];
+
+        // CPU: Bottom Right
+        owners[GRID_SIZE-1][GRID_SIZE-1] = 2;
+        cpuColor = grid[GRID_SIZE-1][GRID_SIZE-1];
+
+        // Prevent immediate collision (CPU must differ from Player start)
+        while(cpuColor === playerColor) {
+            cpuColor = (cpuColor + 1) % COLORS.length;
+            grid[GRID_SIZE-1][GRID_SIZE-1] = cpuColor;
+        }
+
+        // Initial Flood to capture connected starting colors
+        floodFill(1, playerColor, true);
+        floodFill(2, cpuColor, true);
+
+        updateUI();
+        ui.message.innerText = "Game Started! Choose a color.";
+    }
+
+    // --- GAME LOGIC ---
+
+    // Returns array of {x,y} for a specific owner
+    function getTerritory(ownerId, ownerGrid) {
+        let territory = [];
+        for(let y=0; y<GRID_SIZE; y++) {
+            for(let x=0; x<GRID_SIZE; x++) {
+                if(ownerGrid[y][x] === ownerId) territory.push({x,y});
+            }
+        }
+        return territory;
+    }
+
+    // Core Flood Fill Algorithm
+    // isReal: true = update actual game state, false = simulation for AI
+    function floodFill(ownerId, newColorIdx, isReal = true) {
+        // Work on references if real, copies if simulation
+        let workOwners = isReal ? owners : owners.map(r => [...r]);
+        let workGrid = isReal ? grid : grid; // Grid colors don't change logic, just ownership
+
+        let territory = getTerritory(ownerId, workOwners);
+        let visited = new Set();
+        territory.forEach(p => visited.add(`${p.x},${p.y}`));
+
+        // Change color of owned cells (visually)
+        if(isReal) {
+            territory.forEach(p => { grid[p.y][p.x] = newColorIdx; });
+        }
+
+        // Expand
+        let queue = [...territory];
+        let addedCount = 0;
+
+        while(queue.length > 0) {
+            let p = queue.pop();
+            // Neighbors: Up, Down, Left, Right
+            const neighbors = [
+                {x:p.x, y:p.y-1}, {x:p.x, y:p.y+1},
+                {x:p.x-1, y:p.y}, {x:p.x+1, y:p.y}
+            ];
+
+            for(let n of neighbors) {
+                // Bounds Check
+                if(n.x >= 0 && n.x < GRID_SIZE && n.y >= 0 && n.y < GRID_SIZE) {
+                    const key = `${n.x},${n.y}`;
+                    if(!visited.has(key)) {
+                        // Logic: If unowned AND matches new color
+                        if(workOwners[n.y][n.x] === 0 && workGrid[n.y][n.x] === newColorIdx) {
+                            workOwners[n.y][n.x] = ownerId;
+                            visited.add(key);
+                            queue.push(n);
+                            addedCount++;
+                            if(isReal) grid[n.y][n.x] = newColorIdx; // Sync color
+                        }
+                        // Or if already owned (to traverse territory)
+                        else if(workOwners[n.y][n.x] === ownerId) {
+                            visited.add(key);
+                            queue.push(n);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Commit Stats if Real
+        if(isReal) {
+            const size = getTerritory(ownerId, owners).length;
+            if(ownerId === 1) {
+                playerColor = newColorIdx;
+                playerTerritorySize = size;
+            } else {
+                cpuColor = newColorIdx;
+                cpuTerritorySize = size;
+            }
+        }
+
+        // Return size for AI calculations
+        return territory.length + addedCount;
+    }
+
+    function handlePlayerTurn(colorIdx) {
+        if(currentState !== 'PLAYER_TURN') return;
+        if(colorIdx === playerColor || colorIdx === cpuColor) return;
+
+        // Player Move
+        floodFill(1, colorIdx, true);
+        updateUI();
+        checkWin();
+
+        if(currentState === 'PLAYER_TURN') { // If game not over
+            currentState = 'CPU_TURN';
+            updateUI(); // Show 'Thinking' state
+            setTimeout(handleCpuTurn, AI_DELAY_MS);
+        }
+    }
+
+    function handleCpuTurn() {
+        if(currentState === 'GAME_OVER') return;
+
+        // Heuristic AI
+        const options = COLORS.map((_, i) => i).filter(c => c !== playerColor && c !== cpuColor);
+        
+        let bestMove = -1;
+        let bestScore = -Infinity;
+
+        options.forEach(color => {
+            // 1. Immediate Gain
+            const mySize = floodFill(2, color, false);
+            const gain = mySize - cpuTerritorySize;
+
+            // 2. Future Risk (Simulate Player's best counter-move)
+            // Clone board to simulate state AFTER CPU move
+            let simOwners = owners.map(r => [...r]);
+            simulateOwnership(simOwners, 2, color); // Helper to apply CPU move to sim board
+
+            // Now find Player's best move on this sim board
+            let maxPlayerGain = 0;
+            const playerOptions = COLORS.map((_, i) => i).filter(c => c !== color && c !== playerColor);
+            
+            playerOptions.forEach(pColor => {
+                 const pSize = simulateFloodCount(simOwners, 1, pColor);
+                 if(pSize - playerTerritorySize > maxPlayerGain) {
+                     maxPlayerGain = pSize - playerTerritorySize;
+                 }
+            });
+
+            // Score Formula: Gain - (RiskFactor * OpponentGain)
+            // Risk 0.5 means we care 50% about blocking opponent
+            const score = gain - (0.5 * maxPlayerGain);
+
+            if(score > bestScore) {
+                bestScore = score;
+                bestMove = color;
+            }
+        });
+
+        // Fallback
+        if(bestMove === -1) bestMove = options[0];
+
+        // Execute CPU Move
+        floodFill(2, bestMove, true);
+        
+        checkWin();
+        if(currentState !== 'GAME_OVER') {
+            currentState = 'PLAYER_TURN';
+        }
+        updateUI();
+    }
+
+    // --- AI HELPERS ---
+
+    // Apply a flood fill to a simulation board array
+    function simulateOwnership(simOwners, ownerId, colorIdx) {
+        let queue = [];
+        // Init queue with current territory
+        for(let y=0; y<GRID_SIZE; y++) 
+            for(let x=0; x<GRID_SIZE; x++) 
+                if(simOwners[y][x] === ownerId) queue.push({x,y});
+
+        let visited = new Set(queue.map(p=>`${p.x},${p.y}`));
+
+        while(queue.length > 0) {
+            let p = queue.pop();
+            const neighbors = [{x:p.x, y:p.y-1}, {x:p.x, y:p.y+1}, {x:p.x-1, y:p.y}, {x:p.x+1, y:p.y}];
+            
+            for(let n of neighbors) {
+                if(n.x>=0 && n.x<GRID_SIZE && n.y>=0 && n.y<GRID_SIZE) {
+                    const key = `${n.x},${n.y}`;
+                    if(!visited.has(key)) {
+                        // Check against GLOBAL grid colors (since they don't change in sim step 1)
+                        if(simOwners[n.y][n.x] === 0 && grid[n.y][n.x] === colorIdx) {
+                            simOwners[n.y][n.x] = ownerId;
+                            visited.add(key);
+                            queue.push(n);
+                        } else if(simOwners[n.y][n.x] === ownerId) {
+                            visited.add(key);
+                            queue.push(n);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Just count result of a flood on a sim board
+    function simulateFloodCount(simOwners, ownerId, colorIdx) {
+        // Clone again for the inner simulation
+        let innerOwners = simOwners.map(r => [...r]); 
+        simulateOwnership(innerOwners, ownerId, colorIdx);
+        // Count
+        let count = 0;
+        for(let row of innerOwners) for(let cell of row) if(cell === ownerId) count++;
+        return count;
+    }
+
+    function checkWin() {
+        const total = GRID_SIZE * GRID_SIZE;
+        const occupied = playerTerritorySize + cpuTerritorySize;
+        
+        if(occupied === total || playerTerritorySize > total/2 || cpuTerritorySize > total/2) {
+            currentState = 'GAME_OVER';
+            ui.modal.classList.remove('hidden');
+            
+            if(playerTerritorySize > cpuTerritorySize) {
+                ui.modalTitle.innerText = "You Win!";
+                ui.modalTitle.className = "text-4xl font-bold mb-3 text-teal-400";
+                ui.modalMessage.innerText = `Domination! You captured ${playerTerritorySize} cells.`;
+                ui.modalIcon.innerText = "🏆";
+            } else if (cpuTerritorySize > playerTerritorySize) {
+                ui.modalTitle.innerText = "You Lost";
+                ui.modalTitle.className = "text-4xl font-bold mb-3 text-pink-500";
+                ui.modalMessage.innerText = `The AI captured ${cpuTerritorySize} cells.`;
+                ui.modalIcon.innerText = "💀";
+            } else {
+                ui.modalTitle.innerText = "Draw";
+                ui.modalMessage.innerText = "The board is split evenly!";
+                ui.modalIcon.innerText = "🤝";
+            }
+        }
+    }
+
+    // --- RENDERING ---
+    function renderLoop() {
+        // Ensure ctx exists
+        if(ctx && grid.length > 0) {
+            // Background
+            ctx.fillStyle = '#1a202c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const cellSize = canvas.width / GRID_SIZE;
+
+            for(let y=0; y<GRID_SIZE; y++) {
+                for(let x=0; x<GRID_SIZE; x++) {
+                    const color = COLORS[grid[y][x]];
+                    const owner = owners[y][x];
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x*cellSize, y*cellSize, cellSize + 0.5, cellSize + 0.5); // +0.5 to fix gap lines
+
+                    // Overlay for Owners
+                    if(owner === 1) { // Player
+                        ctx.fillStyle = "rgba(255,255,255,0.25)";
+                        ctx.fillRect(x*cellSize + 4, y*cellSize + 4, cellSize - 8, cellSize - 8);
+                        // Optional: Icon
+                        // ctx.font = `${cellSize/2}px FontAwesome`;
+                        // ctx.fillStyle = "rgba(255,255,255,0.8)";
+                        // ctx.fillText("\uf007", x*cellSize + cellSize/4, y*cellSize + cellSize/1.5); 
+                    } else if(owner === 2) { // CPU
+                        ctx.fillStyle = "rgba(0,0,0,0.2)";
+                        ctx.fillRect(x*cellSize + 4, y*cellSize + 4, cellSize - 8, cellSize - 8);
+                    }
+                }
+            }
+        }
+        requestAnimationFrame(renderLoop);
+    }
+
+    function updateUI() {
+        // Scores
+        const total = GRID_SIZE * GRID_SIZE;
+        ui.playerScore.innerText = playerTerritorySize;
+        ui.cpuScore.innerText = cpuTerritorySize;
+        ui.playerBar.style.width = `${(playerTerritorySize/total)*100}%`;
+        ui.cpuBar.style.width = `${(cpuTerritorySize/total)*100}%`;
+
+        // Turn Indicator
+        if(currentState === 'PLAYER_TURN') {
+            ui.turnIndicator.innerHTML = '<span class="text-white">Your Turn</span>';
+            ui.turnIndicator.className = "bg-gray-800 p-6 rounded-xl border-l-8 border-yellow-400 shadow-xl text-center font-bold text-2xl flex flex-col items-center justify-center min-h-[100px]";
+        } else if (currentState === 'CPU_TURN') {
+            ui.turnIndicator.innerHTML = '<span class="text-gray-400">AI Thinking...</span><i class="fas fa-cog fa-spin mt-2"></i>';
+            ui.turnIndicator.className = "bg-gray-800 p-6 rounded-xl border-l-8 border-pink-500 shadow-xl text-center font-bold text-2xl flex flex-col items-center justify-center min-h-[100px]";
+        }
+
+        // Palette Buttons
+        ui.palette.innerHTML = '';
+        COLORS.forEach((color, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'color-swatch';
+            btn.style.backgroundColor = color;
+            
+            if(idx === playerColor) {
+                btn.classList.add('active');
+                btn.innerHTML = '<i class="fas fa-check text-white"></i>';
+            } else if (idx === cpuColor) {
+                btn.classList.add('forbidden');
+                btn.innerHTML = '<i class="fas fa-robot text-black opacity-50"></i>';
+            } else if (currentState === 'PLAYER_TURN') {
+                btn.onclick = () => handlePlayerTurn(idx);
+            }
+
+            ui.palette.appendChild(btn);
+        });
+    }
+
+    // --- BOOTSTRAP ---
+    window.onload = setup;
+
+</script>
+</body>
+</html>
